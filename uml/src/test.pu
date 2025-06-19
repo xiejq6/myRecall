@@ -1,0 +1,80 @@
+@startuml 部署架构图
+node "上游应用集群(Consumer)" as Consumer {
+    [业务应用]
+}
+
+cloud "注册中心" as Registry {
+    [Nacos Registry]
+}
+
+node "召回服务集群(Provider)" as RecallServiceCluster {
+    component "召回服务API" as RecallAPI
+    component "工作流引擎" as WorkflowEngine
+    component "算子执行器" as OperatorExecutor
+}
+
+node "ES集群" as ESCluster {
+    [ES节点1]
+    [ES节点2]
+    [ES节点3]
+}
+
+node "Faiss服务" as FaissService {
+    [Faiss索引服务器]
+}
+
+node "ADB集群" as ADBCluster {
+    [ADB主节点]
+    [ADB从节点1]
+    [ADB从节点2]
+}
+
+node "Nebula图数据库" as NebulaDB {
+    [Graph服务]
+    [Meta服务]
+    [Storage服务]
+}
+
+node "配置中心" as ConfigCenter {
+    [Nacos Config]
+}
+
+node "监控系统" as Monitoring {
+    [Prometheus]
+    [Grafana]
+}
+
+node "调度系统" as Scheduler {
+    [定时任务调度]
+}
+
+' 服务调用关系
+Consumer ..> RecallAPI : Dubbo RPC调用
+
+RecallAPI --> WorkflowEngine : 调用工作流
+WorkflowEngine --> OperatorExecutor : 执行算子
+
+OperatorExecutor --> ESCluster : ES召回
+OperatorExecutor --> FaissService : 向量召回
+OperatorExecutor --> ADBCluster : ADB召回
+OperatorExecutor --> NebulaDB : 图召回
+
+' 基础设施
+RecallServiceCluster --> Registry : 服务注册
+Consumer --> Registry : 服务发现
+RecallServiceCluster --> ConfigCenter : 配置获取
+RecallServiceCluster --> Monitoring : 监控数据
+
+' 数据流向
+ESCluster --> OperatorExecutor : 召回结果
+FaissService --> OperatorExecutor : 召回结果
+ADBCluster --> OperatorExecutor : 召回结果
+NebulaDB --> OperatorExecutor : 召回结果
+
+OperatorExecutor --> WorkflowEngine : 执行结果
+WorkflowEngine --> RecallAPI : 工作流结果
+RecallAPI ..> Consumer : Dubbo响应
+
+Scheduler --> RecallServiceCluster : 定时任务
+
+@enduml
